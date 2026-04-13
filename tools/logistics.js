@@ -1,78 +1,142 @@
-// tools/logistics.js
 const logisticsTools = [
     { 
         name: "Damaged Goods Reporter", 
         desc: "Log damaged items for quality control.",
         run: () => render(`
             <h3>Damage Report</h3>
-            <input id="item" placeholder="Scan Item ID">
-            <select id="cond"><option>Crushed Box</option><option>Liquid Leak</option><option>Expired</option></select>
-            <button onclick="alert('Logged to LocalStorage!')">Submit Report</button>
+            <input id="item-id" placeholder="Scan Item ID">
+            <select id="item-cond">
+                <option>Crushed Box</option>
+                <option>Liquid Leak</option>
+                <option>Expired</option>
+            </select>
+            <button onclick="logToDB('Damaged Goods', 'Logistics', {
+                id: document.getElementById('item-id').value, 
+                condition: document.getElementById('item-cond').value
+            })">Submit to Database</button>
         `)
     },
     { 
         name: "Pallet Location Tracker", 
-        desc: "Check bin status in Section A-1.",
+        desc: "Update bin status in Section A-1.",
         run: () => render(`
-            <h3>Section A-1 Status</h3>
-            <div style="display:flex; gap:10px; justify-content:center;">
-                <div style="background:red; padding:10px; color:white; border-radius:5px;">A1: FULL</div>
-                <div style="background:green; padding:10px; color:white; border-radius:5px;">A2: EMPTY</div>
-            </div>
+            <h3>Update Bin Status</h3>
+            <input id="bin-id" placeholder="Bin ID (e.g., A1-402)">
+            <select id="bin-status">
+                <option>FULL</option>
+                <option>EMPTY</option>
+                <option>RESERVED</option>
+            </select>
+            <button onclick="logToDB('Pallet Tracker', 'Logistics', {
+                bin: document.getElementById('bin-id').value, 
+                status: document.getElementById('bin-status').value
+            })">Update Location</button>
         `)
     },
     { 
         name: "Restock Calculator", 
         desc: "Automated Reorder Point (ROP) logic.",
-        run: () => {
-            const rop = (60 * 4) + 15; 
-            render(`<h3>Current ROP: ${rop} units</h3><p>Trigger order when stock hits this level.</p>`);
-        }
+        run: () => render(`
+            <h3>ROP Calculator</h3>
+            <input id="daily-usage" type="number" placeholder="Avg Daily Usage">
+            <input id="lead-time" type="number" placeholder="Lead Time (Days)">
+            <button onclick="(() => {
+                const u = document.getElementById('daily-usage').value;
+                const l = document.getElementById('lead-time').value;
+                const rop = (u * l) + 15;
+                logToDB('Restock Calc', 'Logistics', {usage: u, lead: l, calculated_rop: rop});
+                alert('Calculated ROP: ' + rop);
+            })()">Calculate & Log</button>
+        `)
     },
     { 
         name: "QR Label Generator", 
-        desc: "Generate scannable IDs via API.",
-        run: () => render(`<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=AMZ-UNIT-X"><h3>ID: AMZ-UNIT-X</h3>`)
+        desc: "Generate scannable IDs for new units.",
+        run: () => render(`
+            <h3>Label Gen</h3>
+            <input id="qr-data" placeholder="Asset Name">
+            <button onclick="(() => {
+                const val = document.getElementById('qr-data').value;
+                logToDB('QR Generator', 'Logistics', {asset: val});
+                render('<h3>Generated: ' + val + '</h3><img src=\\'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + val + '\\'>');
+            })()">Generate & Log</button>
+        `)
     },
     { 
         name: "Aisle Heatmap", 
-        desc: "Identify congestion in pick-paths.",
-        run: () => render(`<div style="background:linear-gradient(to right, red, yellow, green); height:30px; width:100%; border-radius:15px;"></div><p>Aisle 7: <b>Critical Congestion</b></p>`)
+        desc: "Report path congestion.",
+        run: () => render(`
+            <h3>Congestion Report</h3>
+            <input id="aisle-num" placeholder="Aisle Number">
+            <select id="traffic-lv"><option>Low</option><option>Medium</option><option>CRITICAL</option></select>
+            <button onclick="logToDB('Aisle Heatmap', 'Logistics', {
+                aisle: document.getElementById('aisle-num').value, 
+                level: document.getElementById('traffic-lv').value
+            })">Log Traffic</button>
+        `)
     },
     { 
         name: "FIFO Age Monitor", 
-        desc: "Detect inventory sitting over 30 days.",
-        run: () => render(`<h3>⚠️ Warning</h3><p>Pallet 402: 42 Days Old<br>Action: Move to Outbound Immediately</p>`)
+        desc: "Flag inventory over 30 days.",
+        run: () => render(`
+            <h3>FIFO Log</h3>
+            <input id="pallet-id" placeholder="Pallet ID">
+            <input id="days-old" type="number" placeholder="Days in Inventory">
+            <button onclick="logToDB('FIFO Monitor', 'Logistics', {
+                id: document.getElementById('pallet-id').value, 
+                days: document.getElementById('days-old').value
+            })">Flag Pallet</button>
+        `)
     },
     { 
         name: "Label Format Validator", 
-        desc: "Regex verification for UPS/FedEx.",
+        desc: "Verify shipping carrier formats.",
         run: () => render(`
-            <input id="track" placeholder="Enter Tracking #" oninput="checkTrack(this.value)">
-            <p id="trackRes">Waiting for input...</p>
+            <h3>Carrier Validator</h3>
+            <input id="track-id" placeholder="Enter Tracking #">
+            <button onclick="(() => {
+                const val = document.getElementById('track-id').value;
+                let carrier = 'Invalid';
+                if(val.startsWith('1Z')) carrier = 'UPS';
+                else if(val.length === 12) carrier = 'FedEx';
+                logToDB('Label Validator', 'Logistics', {input: val, carrier: carrier});
+                alert('Carrier: ' + carrier);
+            })()">Validate & Log</button>
         `)
     },
     { 
         name: "Auto-Invoicer", 
-        desc: "Draft procurement orders for low stock.",
-        run: () => render(`<h3>Draft Invoice #882</h3><p>Item: Brownies (Dairy-Free)<br>Qty: 250 Units<br>Status: Awaiting Manager Approval</p>`)
+        desc: "Draft procurement orders.",
+        run: () => render(`
+            <h3>Draft Procurement</h3>
+            <input id="inv-item" placeholder="Item Name">
+            <input id="inv-qty" type="number" placeholder="Quantity">
+            <button onclick="logToDB('Auto-Invoicer', 'Logistics', {
+                item: document.getElementById('inv-item').value, 
+                qty: document.getElementById('inv-qty').value
+            })">Submit Invoice</button>
+        `)
     },
     { 
         name: "Dock Scheduler", 
-        desc: "Truck arrival time-slot management.",
-        run: () => render(`<h3>Today's Schedule</h3><p>09:00 - Truck A (Miami)<br>10:00 - <b>OPEN SLOT</b><br>11:00 - Truck C (Sunrise)</p>`)
+        desc: "Manage truck arrival slots.",
+        run: () => render(`
+            <h3>Schedule Dock</h3>
+            <input id="truck-id" placeholder="Carrier Name">
+            <input id="arrival-time" type="time">
+            <button onclick="logToDB('Dock Scheduler', 'Logistics', {
+                carrier: document.getElementById('truck-id').value, 
+                time: document.getElementById('arrival-time').value
+            })">Book Slot</button>
+        `)
     },
     { 
         name: "Box Size Recommender", 
-        desc: "Optimize packaging to reduce waste.",
-        run: () => render(`<h3>Recommender</h3><p>Input: 10" x 8" Item<br><b>Use Box: Size B (Standard)</b></p>`)
+        desc: "Packaging optimization.",
+        run: () => render(`
+            <h3>Box Recommender</h3>
+            <input id="dim" placeholder="Item Dimensions (LxWxH)">
+            <button onclick="logToDB('Box Recommender', 'Logistics', {dimensions: document.getElementById('dim').value})">Log Recommendation</button>
+        `)
     }
 ];
-
-// Helper function for the Label Validator
-function checkTrack(val) {
-    const res = document.getElementById('trackRes');
-    if(val.startsWith("1Z")) res.innerHTML = "✅ UPS Validated";
-    else if(val.length === 12) res.innerHTML = "✅ FedEx Validated";
-    else res.innerHTML = "❌ Invalid Format";
-}
