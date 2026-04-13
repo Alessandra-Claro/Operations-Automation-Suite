@@ -9,13 +9,12 @@
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
         header { background: var(--amz-navy); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; transition: 0.3s; border-top: 5px solid var(--amz-orange); }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); cursor: pointer; transition: 0.3s; border-top: 5px solid var(--amz-orange); position: relative; }
         .card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
         .card h3 { margin-top: 0; color: var(--amz-navy); font-size: 1.1rem; }
-        /* Modal Styles */
         #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 99; }
         #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 500px; background: white; padding: 30px; border-radius: 15px; z-index: 100; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        button { background: var(--amz-orange); border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
+        button { background: var(--amz-orange); border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; margin-top: 10px; }
         input, select { padding: 10px; width: 85%; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
     </style>
 </head>
@@ -38,10 +37,32 @@
 <script src="tools/security.js"></script>
 
 <script>
-    // 2. Combine the arrays from both imported files
-    const allTools = [...logisticsTools, ...securityTools];
+    // 1. Combine & Sort by Priority
+    const allTools = [...logisticsTools, ...securityTools].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-    // 3. Global Render functions for the tools to use
+    // 2. The Logic: Attempts MySQL sync, falls back to Console for GitHub Preview
+    async function logToDB(toolName, category, dataObj) {
+        console.log(`[Suite Auth] Attempting to sync ${toolName} to MySQL...`, dataObj);
+        
+        try {
+            const response = await fetch('api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tool: toolName, category: category, data: dataObj })
+            });
+            const result = await response.json();
+            if(result.status === "success") {
+                alert(`Success: ${toolName} logged to MySQL!`);
+                closeTool();
+            }
+        } catch (e) {
+            // Fallback for GitHub Pages/Local environments
+            console.warn("Backend unavailable. This feature requires the live PHP/MySQL environment.");
+            alert(`Demo Mode: Data for "${toolName}" captured in console. (Live MySQL sync available in production demo).`);
+            closeTool();
+        }
+    }
+    
     function render(html) {
         document.getElementById('modal-body').innerHTML = html;
         document.getElementById('modal').style.display = 'block';
@@ -53,12 +74,23 @@
         document.getElementById('overlay').style.display = 'none';
     }
 
-    // 4. Build the UI
+    // 3. Build UI
     const grid = document.getElementById('tool-grid');
     allTools.forEach(tool => {
         const card = document.createElement('div');
         card.className = 'card';
-        card.innerHTML = `<h3>${tool.name}</h3><p>${tool.desc}</p>`;
+        
+        const badgeHTML = tool.badge 
+            ? `<span style="position:absolute; top:-10px; right:-10px; background:linear-gradient(45deg, #ff9900, #ffc400); color:white; padding:5px 12px; border-radius:20px; font-size:0.7rem; font-weight:bold; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border: 2px solid white; z-index:10;">${tool.badge}</span>` 
+            : '';
+
+        card.innerHTML = `
+            ${badgeHTML}
+            <h3>${tool.name}</h3>
+            <p>${tool.desc}</p>
+            ${tool.badge ? '<small style="color:var(--amz-orange); font-weight:bold;">🛠️ High Complexity</small>' : ''}
+        `;
+        
         card.onclick = tool.run;
         grid.appendChild(card);
     });
